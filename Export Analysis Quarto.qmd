@@ -1,0 +1,931 @@
+---
+title: "Comparative and Trend Analysis of Agricultural Export Values (2021-2023)"
+author: "Rayyan Al Shereiqi"
+date: "2025-12-08"
+format:
+  revealjs:
+    footer: "Analysis of Agricultural Export Values"
+    transition: slide
+    theme: solarized
+    slide-number: true
+    title-slide-attributes:
+      data-background-color: "#2E8B57"
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+## INTRODUCTION {data-background-color="#4B6E44"}
+
+::: {style="font-size:70%"}
+Agricultural trade is crucial for economic development and food
+security. The GCC, with its arid climate and limited arable land, relies
+on imports while developing export-oriented agriculture through
+technology and strategic investment. Understanding export patterns is
+key to effective trade policies, market opportunities, and sustainable
+development.
+
+Between 2021–2023, global shifts post-pandemic recovery, geopolitical
+tensions, and evolving climate policies affected trade flows, making it
+essential to track regional adaptations and emerging trends for
+agricultural stakeholders.
+:::
+
+------------------------------------------------------------------------
+
+```{r}
+# LOAD REQUIRED PACKAGES
+
+#install.packages("caret")
+library(readxl)
+library(car)
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(boot)
+library(tidyverse)
+library(ggpubr)
+library(kableExtra)
+library(FactoMineR)
+library(factoextra)
+library(corrplot)
+library(cluster)
+library(NbClust)
+library(ggrepel)
+library(RColorBrewer)
+library(caret)
+library(pROC)
+library(plotly)
+```
+
+```{r}
+# DATA LOADING
+my_data <- read_excel("Data_Export.xlsx")
+```
+
+## About the Data {data-background-color="#4B6E44"}
+
+::: {style="font-size:50%"}
+-   Source: National Center For Statistics and Information
+-   Variables:
+
+```{r, message=FALSE, warning=FALSE}
+head(my_data)
+```
+
+-   Descriptive Analysis:
+
+```{r, message=FALSE, warning=FALSE}
+summary(my_data)
+```
+:::
+
+------------------------------------------------------------------------
+
+## RESEARCH PROBLEM {data-background-color="#4B6E44"}
+
+This study investigates:
+
+1.  Differences in export values between Gulf and non-Gulf countries
+2.  Temporal trends across years and seasons
+3.  Item-specific growth/decline patterns
+4.  Country clustering based on export profiles
+
+------------------------------------------------------------------------
+
+## RESEARCH QUESTIONS {data-background-color="#3A5F4B"}
+
+**Part I: Inferential Analysis**
+
+1.  Is there a significant difference in mean export VALUE between Gulf
+    and Non-Gulf countries? *Method: Wilcoxon Rank-Sum Test*
+
+2.  Does export VALUE vary significantly across years (2021-2023)?
+    *Method: Kruskal-Wallis Test*
+
+3.  Does export VALUE of Dates vary across seasons in Gulf countries?
+    *Method: Kruskal-Wallis Test*
+
+4.  Which items show significant growth/decline trends over 2021-2023?
+    *Method: Spearman's Rank Correlation*
+
+------------------------------------------------------------------------
+
+## RESEARCH QUESTIONS {data-background-color="#3A5F4B"}
+
+**Part II: Modeling & Advanced Analysis**
+
+5.  Can the export profiles of countries be effectively reduced into
+    fewer dimensions using Principal Component Analysis (PCA), and what
+    do these components represent?\
+    *Method: Principal Component Analysis (PCA)*
+
+6.  How can countries be clustered based on their export profiles?\
+    *Method: K-means Clustering on PCA scores*
+
+------------------------------------------------------------------------
+
+## SIGNIFICANCE OF THE STUDY {data-background-color="#2D4A36"}
+
+1.  Provides empirical evidence for regional export disparities.
+2.  Identifies seasonal patterns for strategic planning.
+3.  Highlights trending items for investment/trade decisions.
+4.  Offers clustering methodology for market segmentation.
+5.  Supports data-driven agricultural trade policies.
+
+------------------------------------------------------------------------
+
+## METHODS & ASSUMPTIONS {data-background-color="#3E5D47"}
+
+### Statistical Assumptions
+
+1.  **Normality**: Data should be approximately normally distributed
+    (Shapiro-Wilk test, Histogram and QQ plots).
+2.  **Independence**: Observations should be independent of each other.
+3.  **Homogeneity of Variance**: Equal variances across groups (Levene's
+    test, and Box-plot).
+
+------------------------------------------------------------------------
+
+## Q1. Is there a significant difference in mean export VALUE between Gulf and Non-Gulf countries? {data-background-color="#3A5F4B"}
+
+Method: Wilcoxon Rank-Sum Test
+
+Mathematical Formulation:
+
+::: {style="font-size:70%"}
+$$
+W = \sum_{i=1}^{n_1} R_i
+$$
+
+Under the null hypothesis (H_0):
+
+$$
+W \sim \text{Normal}\!\left(
+\frac{n_1 (n_1 + n_2 + 1)}{2},\;
+\sqrt{\frac{n_1 n_2 (n_1 + n_2 + 1)}{12}}
+\right)
+$$
+:::
+
+------------------------------------------------------------------------
+
+```{r}
+# CREATE GULF/NON-GULF CLASSIFICATION
+# Define Gulf countries and create a new GROUP variable
+# Countries are classified as "Gulf" if they match the predefined list
+# All other countries are classified as "NonGulf"
+
+gulf_countries <- c("Oman", "UAE", "United Arab Emirates",
+                    "Saudi Arabia", "KSA", "Kuwait",
+                    "Qatar", "Bahrain")
+
+my_data$GROUP <- ifelse(my_data$COUNTRY %in% gulf_countries,
+                        "Gulf", "NonGulf")
+
+my_data$GROUP <- factor(my_data$GROUP)
+```
+
+```{r, results='hide', message=FALSE, warning=FALSE }
+# SHAPIRO-WILK TEST FOR NORMALITY
+# Shapiro-Wilk test for Gulf countries
+shapiro_gulf <- my_data %>%
+  filter(GROUP == "Gulf") %>%
+  pull(VALUE) %>%
+  shapiro.test()
+
+# Shapiro-Wilk test for Non-Gulf countries  
+shapiro_nongulf <- my_data %>%
+  filter(GROUP == "NonGulf") %>%
+  pull(VALUE) %>%
+  shapiro.test()
+
+cat("\nGulf Countries:\n")
+print(shapiro_gulf)
+cat("\nNon-Gulf Countries:\n")
+print(shapiro_nongulf)
+
+# LEVENE'S TEST FOR HOMOGENEITY OF VARIANCE
+# Levene's test for Gulf vs. Non-Gulf groups
+# Test with median 
+levene_gulf <- leveneTest(VALUE ~ GROUP, data = my_data, center = median)
+cat("\nLevene's Test (Gulf vs. Non-Gulf) - Median:\n")
+print(levene_gulf)
+
+# Test with mean
+levene_gulf_mean <- leveneTest(VALUE ~ GROUP, data = my_data, center = mean)
+cat("\nLevene's Test (Gulf vs. Non-Gulf) - Mean:\n")
+print(levene_gulf_mean)
+```
+
+## Normality and Homogeneity of variance {data-background-color="#3E5D47"}
+
+::: {style="font-size:70%"}
+**For normality (Shapiro-Wilk normality test):**
+
+-   Gulf countries: Data is NOT normally distributed (p = 1.980565e-90 )
+    \< 0.05
+
+-   Non-Gulf countries: Data is NOT normally distributed (p =
+    2.298397e-55 ) \< 0.05 <br><br>
+
+**For homogeneity of variance (Levene's Test):**
+
+-   Variances are NOT equal between Gulf and Non-Gulf groups (p =
+    1.017163e-29 ) \< 0.05
+
+-   Assumption of homogeneity of variance is VIOLATED
+:::
+
+------------------------------------------------------------------------
+
+## VISUALIZATION: BOXPLOT COMPARING GULF VS NON-GULF COUNTRIES {data-background-color="#3E5D47"}
+
+::: {style="font-size:70%"}
+```{r}
+# VISUALIZATION: BOXPLOT COMPARING GULF VS NON-GULF COUNTRIES
+p <- ggplot(my_data, aes(x = GROUP, y = VALUE, fill = GROUP)) +
+  geom_boxplot(alpha = 0.7) +
+  scale_y_log10(labels = scales::comma) +
+  labs(title = "Export VALUE (log scale): Gulf vs Non-Gulf",
+       x = "Country Group",
+       y = "Export VALUE (log10)") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none")
+
+ggplotly(p)
+```
+
+Graph: Boxplot shows Gulf countries have higher median and wider spread.
+:::
+
+------------------------------------------------------------------------
+
+## WILCOXON RANK-SUM TEST {data-background-color="#3E5D47"}
+
+::: {style="font-size:70%"}
+```{r}
+# WILCOXON RANK-SUM TEST (NON-PARAMETRIC T-TEST)
+wilcox_result <- wilcox.test(VALUE ~ GROUP,
+                             data = my_data,
+                             exact = FALSE)   # Use normal approx for large samples
+
+wilcox_result
+```
+
+Result: W = 3,233,494, p \< 2.2e-16 Interpretation: Strong evidence that
+Gulf countries have higher export values</b>
+
+```{r}
+#MEDIANS
+my_data %>%
+  group_by(GROUP) %>%
+  summarise(median_VALUE = median(VALUE, na.rm = TRUE),
+            n = n())
+```
+
+Median Gulf: 1961 vs Non-Gulf: 677 Therefore, we conclude that Gulf
+countries exhibit significantly higher export VALUE than Non-Gulf
+countries.
+:::
+
+------------------------------------------------------------------------
+
+## Q2. Does export VALUE vary significantly across years (2021-2023)? {data-background-color="#3A5F4B"}
+
+Method: Kruskal-Wallis Test
+
+Mathematical Formulation:
+
+::: {style="font-size:70%"}
+$$
+H = \frac{12}{N(N+1)} \sum \frac{T_j^2}{n_j} - 3(N+1)
+$$
+:::
+
+------------------------------------------------------------------------
+
+```{r, echo=FALSE, results='hide', message=FALSE, warning=FALSE, fig.show='hide'}
+# Convert YEAR to factor for categorical analysis
+my_data$YEAR <- as.factor(my_data$YEAR)
+
+# SHAPIRO-WILK TEST FOR NORMALITY
+shapiro_by_year <- my_data %>%
+  group_by(YEAR) %>%
+  summarise(
+    W = shapiro.test(VALUE)$statistic,
+    p_value = shapiro.test(VALUE)$p.value,
+    n = n(),
+    .groups = 'drop'
+  )
+print(shapiro_by_year)
+
+# QQ plots
+ggplot(my_data, aes(sample = VALUE)) +
+  stat_qq() + 
+  stat_qq_line() +
+  facet_wrap(~ YEAR) +
+  theme_minimal()
+
+# LEVENE'S TEST FOR HOMOGENEITY OF VARIANCE
+levene_years <- leveneTest(VALUE ~ YEAR, data = my_data, center = median)
+cat("\nLevene's Test (Across Years) - Median:\n")
+print(levene_years)
+
+# Boxplot
+ggplot(my_data, aes(x = YEAR, y = VALUE, fill = YEAR)) +
+  geom_boxplot(alpha = 0.7) +
+  scale_y_log10() +
+  labs(title = "Export VALUE Across Years (2021–2023)",
+       y = "Export VALUE (log scale)",
+       x = "Year") +
+  theme_minimal()
+
+```
+
+## Normality and Homogeneity of variance {data-background-color="#3A5F4B"}
+
+::: {style="font-size:70%"}
+**For normality (Shapiro-Wilk normality test):**
+
+For all years (2021,2022,2023), p-values (8.948461e-69, 2.458502e-70,
+2.591690e-64) respectively \< 0.05, so data is NOT normally
+distributed.</b></b>
+
+**For homogeneity of variance (Levene's Test):** Variances are equal
+across years.
+:::
+
+------------------------------------------------------------------------
+
+## Kruskal–Wallis Test {data-background-color="#3A5F4B"}
+
+::: {style="font-size:70%"}
+```{r}
+# Kruskal–Wallis Test
+kruskal_result <- kruskal.test(VALUE ~ YEAR, data = my_data)
+kruskal_result
+```
+
+Result: Kruskal-Wallis χ² = 6.3714, p = 0.04135 Since the p-value
+(0.04135) \< 0.05, there is significant difference in export values
+across years.
+:::
+
+------------------------------------------------------------------------
+
+## Q3. Does export VALUE of Dates vary across seasons in Gulf countries? {data-background-color="#3A5F4B"}
+
+::: {style="font-size:50%"}
+```{r, echo=FALSE, results='hide', message=FALSE, warning=FALSE, fig.show='hide'}
+# Filter data to include only:
+# 1. Gulf countries
+# 2. Date-related items (case-insensitive match)
+dates_data <- my_data %>%
+  filter(COUNTRY %in% gulf_countries & 
+           grepl("Date", ITEM, ignore.case = TRUE)) %>%
+  mutate(
+    # Standardize country names
+    COUNTRY = case_when(
+      COUNTRY %in% c("UAE", "United Arab Emirates") ~ "UAE",
+      COUNTRY == "KSA" ~ "Saudi Arabia",
+      TRUE ~ COUNTRY
+    )
+  )
+
+# Create SEASON variable based on MONTH
+dates_data <- dates_data %>%
+  mutate(
+    SEASON = case_when(
+      MONTH %in% 1:3 ~ "Q1",
+      MONTH %in% 4:6 ~ "Q2",
+      MONTH %in% 7:9 ~ "Q3",
+      MONTH %in% 10:12 ~ "Q4",
+      TRUE ~ NA_character_
+    ),
+    SEASON = factor(SEASON, levels = c("Q1", "Q2", "Q3", "Q4"))
+  )
+
+# Remove any rows with missing season
+dates_data <- dates_data %>% filter(!is.na(SEASON))
+
+# Check sample sizes per season
+dates_data %>%
+  group_by(SEASON) %>%
+  summarise(
+    n = n(),
+    mean_VALUE = mean(VALUE, na.rm = TRUE),
+    median_VALUE = median(VALUE, na.rm = TRUE),
+    sd_VALUE = sd(VALUE, na.rm = TRUE)
+  )
+
+```
+
+```{r}
+# Exploratory Visualization
+# Boxplot of VALUE by SEASON
+p1 <- ggplot(dates_data, aes(x = SEASON, y = VALUE, fill = SEASON)) +
+  geom_boxplot(alpha = 0.7) +
+  scale_y_log10(labels = scales::comma) +
+  labs(title = "Export VALUE of Dates in Gulf Countries by Season",
+       subtitle = "Log scale",
+       x = "Season (Quarter)",
+       y = "Export VALUE (log10)") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none")
+
+ggplotly(p1)
+
+
+```
+
+Graph: Boxplot shows Q1 and Q4 have higher export values. This indicates
+that there is a difference, but for further analysis apply
+Kruskal-Wallis Test.
+:::
+
+------------------------------------------------------------------------
+
+## Kruskal-Wallis Test {data-background-color="#3A5F4B"}
+
+::: {style="font-size:70%"}
+```{r}
+
+# Kruskal-Wallis Test (non-parametric alternative)
+kruskal_result <- kruskal.test(VALUE ~ SEASON, data = dates_data)
+print("Kruskal-Wallis Test Results:")
+print(kruskal_result)
+
+# Extract chi-squared and p-value for reporting
+chi_sq <- kruskal_result$statistic
+p_value_kw <- kruskal_result$p.value
+
+# Check with different alpha level (e.g., α=0.10)
+alpha <- 0.10
+if (kruskal_result$p.value < alpha) {
+  print(paste("Significant at α =", alpha))
+} else {
+  print(paste("Not significant at α =", alpha))
+}
+
+# Look at effect size
+epsilon_squared <- function(kruskal_result, n_total) {
+  h <- kruskal_result$statistic
+  k <- length(unique(dates_data$SEASON))
+  return((h - (k - 1)) / (n_total - 1))
+}
+
+eps_sq <- epsilon_squared(kruskal_result, nrow(dates_data))
+print(paste("Effect size (epsilon-squared):", round(eps_sq, 3)))
+```
+
+Result: Kruskal-Wallis χ² = 7.392, p = 0.0604. Interpretation: Although
+the p-value (0.0604) is slightly above the conventional 0.05 threshold,
+the patterns observed in the graphs suggest seasonal differences.
+Therefore, by adopting a more lenient significance level of 10% (α =
+0.10), we can consider these differences in export values across seasons
+to be potentially meaningful.
+:::
+
+------------------------------------------------------------------------
+
+## Q4. Which items show significant growth/decline trends over 2021-2023? {data-background-color="#3A5F4B"}
+
+Method: Spearman's Rank Correlation
+
+Mathematical Formulation:
+
+::: {style="font-size:70%"}
+$$
+\rho = 1 - \frac{6 \sum d_i^2}{n(n^2-1)}
+$$
+
+where (d_i) is the difference in ranks for observation (i) and (n) is
+the number of observations.
+:::
+
+------------------------------------------------------------------------
+
+```{r}
+# Ensure YEAR is numeric
+my_data$YEAR <- as.numeric(as.character(my_data$YEAR))
+# 1. Filter items with sufficient data
+valid_items <- my_data %>%
+  group_by(ITEM) %>%
+  summarise(
+    n = n(),
+    n_years = n_distinct(YEAR),
+    .groups = 'drop'
+  ) %>%
+  filter(n >= 10, n_years >= 3)
+
+analysis_data <- my_data %>% 
+  filter(ITEM %in% valid_items$ITEM) %>%
+  filter(!is.na(YEAR), !is.na(VALUE))  # Remove missing values
+
+```
+
+```{r}
+# Calculate Spearman correlation
+year_cor <- analysis_data %>%
+  group_by(ITEM) %>%
+  summarise(
+    n = n(),
+    n_years = n_distinct(YEAR),
+    rho = cor(VALUE, YEAR, method = "spearman", use = "complete.obs"),
+    .groups = 'drop'
+  ) %>%
+  filter(!is.na(rho)) %>%
+  # Add p-values separately to avoid errors in summarise
+  mutate(
+    p_value = map_dbl(ITEM, ~{
+      item_data <- analysis_data %>% filter(ITEM == .x)
+      if(nrow(item_data) >= 3) {
+        cor_test <- cor.test(item_data$VALUE, item_data$YEAR, 
+                            method = "spearman", exact = FALSE)
+        return(cor_test$p.value)
+      } else {
+        return(NA)
+      }
+    })
+  ) %>%
+  mutate(
+    trend = case_when(
+      rho > 0.3 & p_value < 0.05 ~ "Strong Growth",
+      rho > 0 & p_value < 0.05 ~ "Weak Growth",
+      rho < -0.3 & p_value < 0.05 ~ "Strong Decline",
+      rho < 0 & p_value < 0.05 ~ "Weak Decline",
+      TRUE ~ "No Clear Trend"
+    ),
+    significance = ifelse(p_value < 0.05, "*", "")
+  ) %>%
+  arrange(desc(abs(rho)))
+
+```
+
+## Spearman's Correlation Summary Statistics {data-background-color="#3A5F4B"}
+
+::: {style="font-size:50%"}
+```{r, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+# Summary statistics
+#TREND SUMMARY
+trend_summary <- year_cor %>%
+  group_by(trend) %>%
+  summarise(count = n(), percent = round(100*n()/nrow(year_cor), 1), .groups = 'drop')
+print(trend_summary, n = Inf)
+```
+
+TOP 10 GROWING ITEMS
+
+```{r}
+# TOP 10 GROWING ITEMS
+year_cor %>% 
+  filter(rho > 0, p_value < 0.05) %>%
+  arrange(desc(rho)) %>%
+  slice_head(n = 10) %>%
+  select(ITEM, rho, p_value, n, n_years, trend) %>%
+  print(n = 10)
+```
+
+TOP 10 DECLINING ITEMS
+
+```{r}
+# TOP 10 DECLINING ITEMS
+year_cor %>% 
+  filter(rho < 0, p_value < 0.05) %>%
+  arrange(rho) %>%
+  slice_head(n = 10) %>%
+  select(ITEM, rho, p_value, n, n_years, trend) %>%
+  print(n = 10)
+
+```
+
+-   Top Growing Items: Forage (ρ=0.612), Peas (ρ=0.574), Rice (ρ=0.483)
+
+-   Top Declining Items: Lettuce (ρ=-0.611), Plantains (ρ=-0.580)
+:::
+
+------------------------------------------------------------------------
+
+## Visualisation {data-background-color="#3A5F4B"}
+
+::: {style="font-size:50%"}
+```{r}
+# Faceted visualization for top 10 growing/declining items
+
+# Get top 10 growing and top 10 declining items
+top_growing <- year_cor %>% 
+  filter(rho > 0, p_value < 0.05) %>%
+  arrange(desc(rho)) %>%
+  slice_head(n = 10) %>%
+  mutate(direction = "Growing")
+
+top_declining <- year_cor %>% 
+  filter(rho < 0, p_value < 0.05) %>%
+  arrange(rho) %>%
+  slice_head(n = 10) %>%
+  mutate(direction = "Declining")
+
+# Combine and prepare for plotting
+top_items <- bind_rows(top_growing, top_declining) %>%
+  mutate(
+    direction = factor(direction, levels = c("Growing", "Declining")),
+    trend_strength = case_when(
+      abs(rho) >= 0.5 ~ "Very Strong",
+      abs(rho) >= 0.3 ~ "Strong",
+      TRUE ~ "Moderate"
+    ),
+    ITEM_short = str_trunc(ITEM, width = 30)  # Truncate long item names
+  )
+```
+
+```{r}
+# Faceted bar chart
+p1 <- ggplot(top_items, aes(x = reorder(ITEM_short, rho), y = rho, 
+                           fill = trend_strength)) +
+  geom_col() +
+  facet_wrap(~ direction, scales = "free_y", ncol = 1) +
+  coord_flip() +
+  scale_fill_manual(values = c("Very Strong" = "darkred", 
+                              "Strong" = "orange", 
+                              "Moderate" = "gold")) +
+  labs(title = "Top 10 Growing & Declining Export Items",
+       subtitle = "Spearman ρ with Year | Sorted by trend strength",
+       x = "", 
+       y = "Spearman ρ",
+       fill = "Trend Strength") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        strip.text = element_text(size = 11, face = "bold"))
+
+ggplotly(p1)
+```
+
+Graph: Faceted bar chart visually highlights strongest trends
+:::
+
+------------------------------------------------------------------------
+
+## Q5. Can the export profiles of countries be effectively reduced into fewer dimensions using Principal Component Analysis (PCA), and what do these components represent? {data-background-color="#3A5F4B"}
+
+Method: Principal Component Analysis (PCA)
+
+Mathematical Formulation:
+
+::: {style="font-size:70%"}
+$$
+X = T P^T + E
+$$
+
+where:\
+- (X) = original data matrix\
+- (T) = scores matrix (principal component scores)\
+- (P) = loadings matrix (principal component loadings)\
+- (E) = residual/error matrix
+:::
+
+------------------------------------------------------------------------
+
+```{r}
+# Prepare the data in matrix format
+# Country-Item Matrix (countries as rows, items as columns)
+country_item_matrix <- my_data %>%
+  group_by(COUNTRY, ITEM) %>%
+  summarise(
+    total_value = sum(VALUE, na.rm = TRUE),
+    avg_value = mean(VALUE, na.rm = TRUE),
+    n_transactions = n(),
+    .groups = 'drop'
+  )
+
+# Pivot to wide format for PCA
+pivot_country_item <- country_item_matrix %>%
+  pivot_wider(
+    id_cols = COUNTRY,
+    names_from = ITEM,
+    values_from = total_value,
+    values_fill = 0
+  )
+
+
+```
+
+## PCA Summary {data-background-color="#3A5F4B"}
+
+```{r}
+# Prepare matrix for PCA (remove country names)
+pca_data <- pivot_country_item %>%
+  select(-COUNTRY) %>%
+  as.matrix()
+
+# Log-transform to handle extreme values
+pca_data_log <- log10(pca_data + 1)  # Add 1 to avoid log(0)
+
+# Perform PCA
+pca_result <- prcomp(pca_data_log, scale = TRUE, center = TRUE)
+
+# Summary of PCA
+summary(pca_result)
+```
+
+------------------------------------------------------------------------
+
+## Scree Plot {data-background-color="#3A5F4B"}
+
+::: {style="font-size:70%"}
+```{r}
+# Variance explained plot (Scree Plot)
+ggplotly(fviz_eig(pca_result, 
+         addlabels = TRUE, 
+         ylim = c(0, 50),
+         barfill = "steelblue",
+         barcolor = "steelblue",
+         linecolor = "darkred",
+         main = "PCA - Scree Plot: Variance Explained by Principal Components",
+         xlab = "Principal Components",
+         ylab = "Percentage of Explained Variance"))
+```
+
+-   PC1 explains 44.16% of variance
+-   PC2 explains 19.59% of variance
+-   Cumulative: 63.76% in first 2 PCs 
+:::
+
+## Q6. How can countries be clustered based on their export profiles? {data-background-color="#3A5F4B"}
+
+Method: K-means clustering
+
+Mathematical Formulation:
+
+::: {style="font-size:70%"}
+$$
+\underset{S}{\mathrm{arg\,min}} \sum_{i=1}^{k} \sum_{x \in S_i} \|x - \mu_i\|^2
+$$
+
+where:\
+- (S = {S_1, S_2, \dots, S_k}) are the clusters\
+- (\mu\_i) is the centroid of cluster (S_i)\
+- (x) are the data points
+:::
+
+------------------------------------------------------------------------
+
+```{r}
+# Determine optimal number of clusters for countries using the PCA scores (reduced dimensions)
+pca_for_clustering <- pca_result$x[, 1:5]  # Use first 5 PCs
+
+# Create country_scores data frame before using it
+country_scores <- data.frame(
+  Country = pivot_country_item$COUNTRY,
+  PC1 = pca_result$x[, 1],
+  PC2 = pca_result$x[, 2],
+  PC3 = pca_result$x[, 3],
+  PC4 = pca_result$x[, 4],
+  PC5 = pca_result$x[, 5]
+)
+```
+
+## Scree Plot {data-background-color="#3A5F4B"}
+
+::: {style="font-size:70%"}
+Silhouette method
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Silhouette method
+sil_width <- sapply(2:10, function(k) {
+  km <- kmeans(pca_for_clustering, centers = k, nstart = 25)
+  ss <- silhouette(km$cluster, dist(pca_for_clustering))
+  mean(ss[, 3])
+})
+
+# Silhouette method plot
+silhouette_data <- data.frame(k = 2:10, Silhouette = sil_width)
+p <- ggplot(silhouette_data, aes(x = k, y = Silhouette)) +
+  geom_line(color = "darkgreen", size = 1) +
+  geom_point(color = "darkgreen", size = 3) +
+  labs(title = "Silhouette Method for Optimal k",
+       x = "Number of Clusters (k)",
+       y = "Average Silhouette Width") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+Optimal clusters: k=3 (from silhouette method)
+:::
+
+------------------------------------------------------------------------
+
+```{r}
+# Perform K-means clustering with k=3
+optimal_k <- 3  
+set.seed(123)
+km_result <- kmeans(pca_for_clustering, centers = optimal_k, nstart = 25)
+
+# Add cluster assignments to country data
+country_scores$Cluster <- as.factor(km_result$cluster)
+
+# Create cluster_info HERE before using it
+cluster_info <- country_scores %>%
+  select(Country, Cluster)
+
+
+```
+
+## Visualize clusters in PCA space {data-background-color="#3A5F4B"}
+
+::: {style="font-size:50%"}
+
+```{r}
+# Visualize clusters in PCA space
+ggplot(country_scores, aes(x = PC1, y = PC2, color = Cluster, label = Country)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_text_repel(size = 3, max.overlaps = 15, show.legend = FALSE) +
+  stat_ellipse(aes(fill = Cluster), 
+               geom = "polygon", alpha = 0.1, level = 0.8) +
+  labs(title = paste("Country Clusters in PCA Space (k =", optimal_k, ")"),
+       subtitle = "Colored by K-means Clusters",
+       x = paste0("PC1 (", round(100 * pca_result$sdev[1]^2/sum(pca_result$sdev^2), 1), "%)"),
+       y = paste0("PC2 (", round(100 * pca_result$sdev[2]^2/sum(pca_result$sdev^2), 1), "%)")) +
+  theme_minimal() +
+  theme(legend.position = "right")
+```
+-   Cluster 1: High-export countries (e.g., UAE, Saudi Arabia)
+-   Cluster 2: Medium-export countries
+-   Cluster 3: Low-export countries 
+:::
+---
+
+## Summary of findings {data-background-color="#3A5F4B"}
+
+::: {style="font-size:70%"}
+<div>
+
+1.  Gulf countries have significantly higher export values than non-Gulf
+2.  Export values increased significantly from 2021 to 2023
+3.  Dates exports in Gulf peak in Q4, dip in Q2-Q3
+4.  9.1% of items show strong growth, 4.5% show strong decline
+5.  Countries cluster into 3 distinct export profiles
+
+</div>
+:::
+
+------------------------------------------------------------------------
+
+## LIMITATIONS & FUTURE WORK {data-background-color="#3A5F4B"}
+
+::: {style="font-size:70%"}
+<div>
+
+-   Limited to 3 years of data
+-   Only value data (no volume/price separation)
+-   Country classification simplified (Gulf/Non-Gulf binary)
+-   Future: Include economic indicators, climate data, policy variables
+-   Future: Time series analysis, forecasting models
+
+</div>
+:::
+
+------------------------------------------------------------------------
+
+## RECOMMENDATIONS {data-background-color="#3A5F4B"}
+
+::: {style="font-size:70%"}
+<div>
+
+1.  Target investments in growing items (Forage, Peas, Rice)
+2.  Develop seasonal strategies for high-demand periods (Q4 for dates)
+3.  Use clustering for targeted trade policies
+4.  Monitor declining items (Lettuce, Plantains) for intervention
+5.  Expand data collection to include price and volume metrics
+6.  Consider macroeconomic factors in future analyses
+
+</div>
+:::
+
+------------------------------------------------------------------------
+
+## CONCLUSION {data-background-color="#3A5F4B"}
+
+::: {style="font-size:70%"}
+<div>
+
+This study analyzed agricultural export patterns across Gulf and
+non-Gulf countries (2021–2023) using inferential and advanced methods.
+Gulf countries showed significantly higher export values than non-Gulf
+countries (Wilcoxon p \< 2.2×10⁻¹⁶), and overall exports trended upward,
+with seasonal variations for items like dates being marginal (p =
+0.0604). Trend analysis highlighted growing items such as forage, peas,
+and rice, while lettuce and plantains declined. PCA reduced the data
+dimensions (63.76% variance in first two components), and k-means
+clustering revealed three distinct country groups. These findings
+demonstrate that export dynamics are shaped by regional, temporal, and
+commodity-specific factors, offering actionable insights for
+policymakers and traders.
+
+</div>
+:::
+
+------------------------------------------------------------------------
+
+## THANK YOU {data-background-color="#3A5F4B"}
