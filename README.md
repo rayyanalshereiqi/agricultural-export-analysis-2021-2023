@@ -73,5 +73,10 @@ The dataset includes:
 
 ---
 
-## 📂 Repository Structure
+👤 Author
+Rayyan Al Shereiqi
+Statistics Major | Computer Science Minor
+Sultan Qaboos University
+
+
 
