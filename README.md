@@ -73,9 +73,9 @@ The dataset includes:
 
 ---
 
-👤 Author
-Rayyan Al Shereiqi
-Statistics Major | Computer Science Minor
+👤 Author:
+Rayyan Al Shereiqi |
+Statistics Major & Computer Science Minor |
 Sultan Qaboos University
 
 
