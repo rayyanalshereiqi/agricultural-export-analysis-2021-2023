@@ -33,7 +33,7 @@ This study investigates:
 
 ---
 
-## 📊 Data Description
+## 📊 Data Variables
 The dataset includes:
 - **Country**
 - **Region (Gulf / Non-Gulf)**
@@ -42,7 +42,6 @@ The dataset includes:
 - **Agricultural Item**
 - **Export Value**
 
-> ⚠️ Note: Data has been preprocessed to handle missing values, inconsistent country names, and skewed distributions.
 
 ---
 
